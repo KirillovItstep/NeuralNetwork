@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Однослойный персептрон - Полный лог обучения</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <style>
+        .weights-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        .weights-value {
+            font-size: 1.8rem;
+            font-weight: bold;
+            font-family: 'Courier New', monospace;
+        }
+        .training-logs {
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.8rem;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            border-radius: 8px;
+            padding: 10px;
+        }
+        .log-entry {
+            padding: 4px 8px;
+            border-bottom: 1px solid #333;
+            font-family: 'Courier New', monospace;
+        }
+        .log-error {
+            color: #f48771;
+            font-weight: bold;
+        }
+        .log-success {
+            color: #6a9955;
+        }
+        .log-info {
+            color: #9cdcfe;
+        }
+        .epoch-badge {
+            display: inline-block;
+            min-width: 60px;
+            color: #ce9178;
+        }
+        .weights-badge {
+            color: #b5cea8;
+        }
+        .scrollable-table {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .log-header {
+            background: #2d2d2d;
+            padding: 8px;
+            border-radius: 8px 8px 0 0;
+            color: #fff;
+            font-weight: bold;
+            border-bottom: 2px solid #007bff;
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <div class="container py-5">
+        <div class="row">
+            <div class="col-12 text-center mb-4">
+                <h1 class="display-4">🧠 Однослойный персептрон</h1>
+            
+            </div>
+        </div>
+        
+        <div class="row">
+            <!-- Левая колонка - ввод данных -->
+            <div class="col-md-5">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">📊 Таблица истинности</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted">Введите значения для x₁, x₂ и желаемый выход y (0 или 1):</p>
+                        
+                        <div class="scrollable-table">
+                            <table class="table table-bordered">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>#</th>
+                                        <th>x₁</th>
+                                        <th>x₂</th>
+                                        <th>y (ожидаемый)</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="truthTable">
+                                    <tr>
+                                        <td>1</td>
+                                        <td><input type="number" class="form-control form-control-sm x1" value="0" min="0" max="1" step="1"></td>
+                                        <td><input type="number" class="form-control form-control-sm x2" value="0" min="0" max="1" step="1"></td>
+                                        <td><input type="number" class="form-control form-control-sm y-target" value="0" min="0" max="1" step="1"></td>
+                                    </tr>
+                                    <tr>
+                                        <td>2</td>
+                                        <td><input type="number" class="form-control form-control-sm x1" value="0" min="0" max="1" step="1"></td>
+                                        <td><input type="number" class="form-control form-control-sm x2" value="1" min="0" max="1" step="1"></td>
+                                        <td><input type="number" class="form-control form-control-sm y-target" value="1" min="0" max="1" step="1"></td>
+                                    </tr>
+                                    <tr>
+                                        <td>3</td>
+                                        <td><input type="number" class="form-control form-control-sm x1" value="1" min="0" max="1" step="1"></td>
+                                        <td><input type="number" class="form-control form-control-sm x2" value="0" min="0" max="1" step="1"></td>
+                                        <td><input type="number" class="form-control form-control-sm y-target" value="1" min="0" max="1" step="1"></td>
+                                    </tr>
+                                    <tr>
+                                        <td>4</td>
+                                        <td><input type="number" class="form-control form-control-sm x1" value="1" min="0" max="1" step="1"></td>
+                                        <td><input type="number" class="form-control form-control-sm x2" value="1" min="0" max="1" step="1"></td>
+                                        <td><input type="number" class="form-control form-control-sm y-target" value="1" min="0" max="1" step="1"></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <div class="row mt-3">
+                            <div class="col-md-6">
+                                <label class="form-label">⚙️ Скорость обучения (η)</label>
+                                <input type="number" id="learningRate" class="form-control" value="0.5" step="0.1" min="0.01" max="1">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">🔄 Количество эпох</label>
+                                <input type="number" id="epochs" class="form-control" value="50" step="10" min="1" max="500">
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid gap-2 mt-4">
+                            <button class="btn btn-success btn-lg" onclick="trainPerceptron()">
+                                🚀 Обучить персептрон
+                            </button>
+                            <button class="btn btn-secondary" onclick="resetToOR()">
+                                🔄 Логическое ИЛИ
+                            </button>
+                            <button class="btn btn-secondary" onclick="resetToAND()">
+                                🔄 Логическое И
+                            </button>
+                            <button class="btn btn-secondary" onclick="resetToXOR()">
+                                🔄 Логическое XOR (нелинейная)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Правая колонка - результаты -->
+            <div class="col-md-7">
+                <div class="weights-card shadow">
+                    <h4 class="mb-3">🎯 Обученные параметры персептрона</h4>
+                    <div class="row text-center">
+                        <div class="col-md-4">
+                            <div class="border border-light rounded p-2">
+                                <small>Вес w₁</small>
+                                <div class="weights-value" id="w1">0.0000</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="border border-light rounded p-2">
+                                <small>Вес w₂</small>
+                                <div class="weights-value" id="w2">0.0000</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="border border-light rounded p-2">
+                                <small>Смещение b</small>
+                                <div class="weights-value" id="bias">0.0000</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-3 text-center">
+                        <small class="opacity-75">Формула: y = 1, если w₁·x₁ + w₂·x₂ + b ≥ 0, иначе 0</small>
+                    </div>
+                </div>
+                
+                <div class="card shadow-sm mt-4">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">✅ Проверка на обучающей выборке</h5>
+                    </div>
+                    <div class="card-body" id="predictions">
+                        <p class="text-muted text-center">Нажмите "Обучить персептрон", чтобы увидеть результаты</p>
+                    </div>
+                </div>
+                
+                <div class="card shadow-sm mt-4" id="logsCard" style="display: none;">
+                    <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">📝 Полный лог обучения (все эпохи)</h5>
+                        <button class="btn btn-sm btn-light" onclick="clearLogs()">Очистить лог</button>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="log-header">
+                            <span class="epoch-badge">Эпоха</span> | 
+                            <span class="weights-badge">w₁</span> | 
+                            <span class="weights-badge">w₂</span> | 
+                            <span class="weights-badge">b</span> | 
+                            Ошибка | Статус
+                        </div>
+                        <div class="training-logs" id="trainingLogs">
+                            <div class="log-entry log-info">Ожидание начала обучения...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Класс однослойного персептрона
+        class Perceptron {
+            constructor(learningRate = 0.5) {
+                this.learningRate = learningRate;
+                // Инициализируем веса маленькими случайными числами
+                this.w1 = (Math.random() * 0.4 - 0.2);
+                this.w2 = (Math.random() * 0.4 - 0.2);
+                this.bias = (Math.random() * 0.4 - 0.2);
+            }
+            
+            // Функция активации (пороговая)
+            activate(sum) {
+                return sum >= 0 ? 1 : 0;
+            }
+            
+            // Прямой проход
+            predict(x1, x2) {
+                const sum = this.w1 * x1 + this.w2 * x2 + this.bias;
+                return this.activate(sum);
+            }
+            
+            // Линейная комбинация (без активации)
+            linearSum(x1, x2) {
+                return this.w1 * x1 + this.w2 * x2 + this.bias;
+            }
+            
+            // Обучение на одном примере
+            trainOnExample(x1, x2, target) {
+                const prediction = this.predict(x1, x2);
+                const error = target - prediction;
+                
+                // Обновляем веса по правилу персептрона
+                this.w1 += this.learningRate * error * x1;
+                this.w2 += this.learningRate * error * x2;
+                this.bias += this.learningRate * error;
+                
+                return {
+                    prediction: prediction,
+                    error: error
+                };
+            }
+            
+            // Полное обучение на всем наборе данных с логированием всех эпох
+            train(trainingData, epochs, logCallback) {
+                let allLogs = [];
+                let converged = false;
+                let convergenceEpoch = null;
+                
+                for (let epoch = 1; epoch <= epochs; epoch++) {
+                    let totalError = 0;
+                    let errors = [];
+                    
+                    // Перемешиваем данные для лучшего обучения
+                    const shuffledData = [...trainingData];
+                    for (let i = shuffledData.length - 1; i > 0; i--) {
+                        const j = Math.floor(Math.random() * (i + 1));
+                        [shuffledData[i], shuffledData[j]] = [shuffledData[j], shuffledData[i]];
+                    }
+                    
+                    // Обучаем на каждом примере
+                    for (const example of shuffledData) {
+                        const result = this.trainOnExample(example.x1, example.x2, example.target);
+                        totalError += Math.abs(result.error);
+                        errors.push(result.error);
+                    }
+                    
+                    // Проверяем, сошлась ли сеть (все примеры предсказаны верно)
+                    let allCorrect = true;
+                    for (const example of trainingData) {
+                        const pred = this.predict(example.x1, example.x2);
+                        if (pred !== example.target) {
+                            allCorrect = false;
+                            break;
+                        }
+                    }
+                    
+                    // Создаем запись лога для этой эпохи
+                    const logEntry = {
+                        epoch: epoch,
+                        w1: this.w1,
+                        w2: this.w2,
+                        bias: this.bias,
+                        totalError: totalError,
+                        allCorrect: allCorrect,
+                        errors: errors
+                    };
+                    
+                    allLogs.push(logEntry);
+                    
+                    // Вызываем callback для отображения лога
+                    if (logCallback) {
+                        logCallback(logEntry);
+                    }
+                    
+                    if (allCorrect && !converged) {
+                        converged = true;
+                        convergenceEpoch = epoch;
+                        // Продолжаем обучение до конца эпох, но отмечаем сходимость
+                    }
+                }
+                
+                return {
+                    converged: converged,
+                    convergenceEpoch: convergenceEpoch,
+                    epochs: epochs,
+                    finalW1: this.w1,
+                    finalW2: this.w2,
+                    finalBias: this.bias,
+                    logs: allLogs
+                };
+            }
+            
+            getWeights() {
+                return {
+                    w1: this.w1,
+                    w2: this.w2,
+                    bias: this.bias
+                };
+            }
+            
+            setWeights(w1, w2, bias) {
+                this.w1 = w1;
+                this.w2 = w2;
+                this.bias = bias;
+            }
+        }
+        
+        // Глобальная переменная
+        let trainedPerceptron = null;
+        let currentEpoch = 0;
+        
+        // Функция сбора данных из таблицы
+        function getTrainingData() {
+            const rows = document.querySelectorAll('#truthTable tr');
+            const trainingData = [];
+            
+            for (let row of rows) {
+                const x1 = parseFloat(row.querySelector('.x1').value);
+                const x2 = parseFloat(row.querySelector('.x2').value);
+                const y = parseFloat(row.querySelector('.y-target').value);
+                
+                trainingData.push({
+                    x1: x1,
+                    x2: x2,
+                    target: y
+                });
+            }
+            
+            return trainingData;
+        }
+        
+        // Очистка логов
+        function clearLogs() {
+            const logContainer = document.getElementById('trainingLogs');
+            logContainer.innerHTML = '<div class="log-entry log-info">Лог очищен. Нажмите "Обучить" для нового обучения.</div>';
+        }
+        
+        // Добавление записи в лог
+        function addLogEntry(logEntry) {
+            const logContainer = document.getElementById('trainingLogs');
+            
+            // Убираем сообщение "Ожидание обучения" если оно есть
+            if (logContainer.innerHTML.includes('Ожидание начала обучения') || 
+                logContainer.innerHTML.includes('Лог очищен')) {
+                logContainer.innerHTML = '';
+            }
+            
+            const statusSymbol = logEntry.allCorrect ? '✅' : '❌';
+            const statusText = logEntry.allCorrect ? 'СОШЛАСЬ' : 'ошибка';
+            const statusClass = logEntry.allCorrect ? 'log-success' : 'log-error';
+            
+            const logDiv = document.createElement('div');
+            logDiv.className = `log-entry ${statusClass}`;
+            logDiv.innerHTML = `
+                <span class="epoch-badge">Эпоха ${logEntry.epoch}:</span>
+                <span class="weights-badge">w₁=${logEntry.w1.toFixed(6)}</span> | 
+                <span class="weights-badge">w₂=${logEntry.w2.toFixed(6)}</span> | 
+                <span class="weights-badge">b=${logEntry.bias.toFixed(6)}</span> | 
+                Ошибка=${logEntry.totalError.toFixed(4)} | 
+                ${statusSymbol} ${statusText}
+            `;
+            
+            logContainer.appendChild(logDiv);
+            // Автоматическая прокрутка вниз
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+        
+        // Основная функция обучения
+        async function trainPerceptron() {
+            const trainingData = getTrainingData();
+            const learningRate = parseFloat(document.getElementById('learningRate').value);
+            const epochs = parseInt(document.getElementById('epochs').value);
+            
+            // Создаем новый персептрон
+            const perceptron = new Perceptron(learningRate);
+            
+            // Показываем начальные веса (с точностью до 4 знаков)
+            document.getElementById('w1').innerHTML = perceptron.w1.toFixed(4);
+            document.getElementById('w2').innerHTML = perceptron.w2.toFixed(4);
+            document.getElementById('bias').innerHTML = perceptron.bias.toFixed(4);
+            
+            // Показываем индикатор загрузки
+            const trainBtn = document.querySelector('.btn-success');
+            const originalText = trainBtn.innerHTML;
+            trainBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Обучение...';
+            trainBtn.disabled = true;
+            
+            // Очищаем и показываем карточку с логами
+            clearLogs();
+            document.getElementById('logsCard').style.display = 'block';
+            
+            // Используем setTimeout для асинхронного обучения с обновлением UI
+            setTimeout(() => {
+                try {
+                    // Функция обратного вызова для каждой эпохи
+                    const logCallback = (logEntry) => {
+                        addLogEntry(logEntry);
+                    };
+                    
+                    // Обучаем персептрон
+                    const result = perceptron.train(trainingData, epochs, logCallback);
+                    
+                    trainedPerceptron = perceptron;
+                    
+                    // Отображаем финальные веса (с точностью до 4 знаков)
+                    document.getElementById('w1').innerHTML = perceptron.w1.toFixed(4);
+                    document.getElementById('w2').innerHTML = perceptron.w2.toFixed(4);
+                    document.getElementById('bias').innerHTML = perceptron.bias.toFixed(4);
+                    
+                    // Отображаем предсказания
+                    displayPredictions(perceptron, trainingData);
+                    
+                    // Добавляем итоговую запись в лог
+                    const summaryDiv = document.createElement('div');
+                    summaryDiv.className = 'log-entry log-info mt-2';
+                    summaryDiv.style.borderTop = '2px solid #007bff';
+                    summaryDiv.style.marginTop = '10px';
+                    summaryDiv.style.paddingTop = '10px';
+                    
+                    if (result.converged) {
+                        summaryDiv.innerHTML = `
+                            🎉 <strong>СЕТЬ СОШЛАСЬ на эпохе ${result.convergenceEpoch}! 🎉</strong><br>
+                            Финальные веса: w₁=${perceptron.w1.toFixed(6)}, w₂=${perceptron.w2.toFixed(6)}, b=${perceptron.bias.toFixed(6)}
+                        `;
+                        summaryDiv.classList.add('log-success');
+                    } else {
+                        summaryDiv.innerHTML = `
+                            ⚠️ <strong>Сеть НЕ СОШЛАСЬ за ${epochs} эпох.</strong><br>
+                            Финальные веса: w₁=${perceptron.w1.toFixed(6)}, w₂=${perceptron.w2.toFixed(6)}, b=${perceptron.bias.toFixed(6)}<br>
+                            Попробуйте увеличить количество эпох или изменить скорость обучения.
+                        `;
+                        summaryDiv.classList.add('log-error');
+                    }
+                    
+                    document.getElementById('trainingLogs').appendChild(summaryDiv);
+                    
+                    // Показываем сообщение об успехе
+                    const message = result.converged 
+                        ? `✅ Обучение завершено! Сеть сошлась за ${result.convergenceEpoch} эпох.` 
+                        : `⚠️ Обучение завершено за ${epochs} эпох, но сеть не полностью сошлась.`;
+                    
+                    showAlert(result.converged ? 'success' : 'warning', message);
+                    
+                } catch (error) {
+                    console.error('Ошибка обучения:', error);
+                    showAlert('danger', '❌ Ошибка при обучении. Проверьте данные и попробуйте снова.');
+                } finally {
+                    trainBtn.innerHTML = originalText;
+                    trainBtn.disabled = false;
+                }
+            }, 100);
+        }
+        
+        // Отображение предсказаний
+        function displayPredictions(perceptron, trainingData) {
+            const container = document.getElementById('predictions');
+            
+            if (!perceptron || !trainingData) {
+                container.innerHTML = '<p class="text-muted text-center">Нет данных для отображения</p>';
+                return;
+            }
+            
+            let html = '<div class="scrollable-table"><table class="table table-sm table-bordered">';
+            html += '<thead class="table-light"><tr><th>x₁</th><th>x₂</th><th>Ожидаемый y</th><th>Линейная сумма</th><th>Предсказанный y</th><th>Результат</th></tr></thead><tbody>';
+            
+            let correctCount = 0;
+            
+            for (let i = 0; i < trainingData.length; i++) {
+                const x1 = trainingData[i].x1;
+                const x2 = trainingData[i].x2;
+                const expected = trainingData[i].target;
+                const linearSum = perceptron.linearSum(x1, x2);
+                const predicted = perceptron.predict(x1, x2);
+                const isCorrect = (predicted === expected);
+                
+                if (isCorrect) correctCount++;
+                
+                html += `<tr>
+                    <td>${x1}</td>
+                    <td>${x2}</td>
+                    <td>${expected}</td>
+                    <td><code>${linearSum.toFixed(4)}</code></td>
+                    <td><strong class="${predicted === 1 ? 'text-success' : 'text-danger'}">${predicted}</strong></td>
+                    <td>${isCorrect ? '✅ Правильно' : '❌ Ошибка'}</td>
+                </tr>`;
+            }
+            
+            html += '</tbody></table></div>';
+            
+            const accuracy = (correctCount / trainingData.length * 100).toFixed(1);
+            
+            html += `<div class="alert ${accuracy === '100.0' ? 'alert-success' : 'alert-warning'} mt-2 text-center">
+                <strong>📊 Точность: ${accuracy}%</strong> (${correctCount}/${trainingData.length} примеров)
+            </div>`;
+            
+            container.innerHTML = html;
+        }
+        
+        // Показать всплывающее уведомление
+        function showAlert(type, message) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed top-0 start-50 translate-middle-x mt-3`;
+            alertDiv.style.zIndex = '9999';
+            alertDiv.style.minWidth = '300px';
+            alertDiv.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+            alertDiv.style.zIndex = '1050';
+            alertDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            document.body.appendChild(alertDiv);
+            
+            setTimeout(() => {
+                if (alertDiv) alertDiv.remove();
+            }, 3000);
+        }
+        
+        // Сбросить на логическое ИЛИ
+        function resetToOR() {
+            const rows = document.querySelectorAll('#truthTable tr');
+            const orTable = [[0,0,0], [0,1,1], [1,0,1], [1,1,1]];
+            
+            rows.forEach((row, index) => {
+                if (index < orTable.length) {
+                    row.querySelector('.x1').value = orTable[index][0];
+                    row.querySelector('.x2').value = orTable[index][1];
+                    row.querySelector('.y-target').value = orTable[index][2];
+                }
+            });
+            
+            showAlert('info', '🔄 Таблица сброшена на логическое ИЛИ');
+        }
+        
+        // Сбросить на логическое И
+        function resetToAND() {
+            const rows = document.querySelectorAll('#truthTable tr');
+            const andTable = [[0,0,0], [0,1,0], [1,0,0], [1,1,1]];
+            
+            rows.forEach((row, index) => {
+                if (index < andTable.length) {
+                    row.querySelector('.x1').value = andTable[index][0];
+                    row.querySelector('.x2').value = andTable[index][1];
+                    row.querySelector('.y-target').value = andTable[index][2];
+                }
+            });
+            
+            showAlert('info', '🔄 Таблица сброшена на логическое И');
+        }
+        
+        // Сбросить на XOR
+        function resetToXOR() {
+            const rows = document.querySelectorAll('#truthTable tr');
+            const xorTable = [[0,0,0], [0,1,1], [1,0,1], [1,1,0]];
+            
+            rows.forEach((row, index) => {
+                if (index < xorTable.length) {
+                    row.querySelector('.x1').value = xorTable[index][0];
+                    row.querySelector('.x2').value = xorTable[index][1];
+                    row.querySelector('.y-target').value = xorTable[index][2];
+                }
+            });
+            
+            showAlert('warning', '⚠️ Задача XOR не является линейно разделимой! Однослойный персептрон не сможет её решить.');
+        }
+        
+        // Инициализация
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('Страница загружена');
+            const demoPerceptron = new Perceptron(0.5);
+            document.getElementById('w1').innerHTML = demoPerceptron.w1.toFixed(4);
+            document.getElementById('w2').innerHTML = demoPerceptron.w2.toFixed(4);
+            document.getElementById('bias').innerHTML = demoPerceptron.bias.toFixed(4);
+        });
+    </script>
+    
+    <!-- Bootstrap JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
