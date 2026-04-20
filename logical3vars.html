@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Многослойный персептрон - 3 переменные (x₁, x₂, x₃) + 15 задач</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <style>
+        .weights-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        .weights-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            font-family: 'Courier New', monospace;
+        }
+        .convergence-badge {
+            font-size: 1.2rem;
+            font-weight: bold;
+            padding: 10px;
+            border-radius: 10px;
+        }
+        .scrollable-table {
+            max-height: 350px;
+            overflow-y: auto;
+        }
+        .table-fixed td, .table-fixed th {
+            text-align: center;
+            vertical-align: middle;
+        }
+        .arch-card {
+            background: #f0f2f5;
+            border-radius: 15px;
+            padding: 15px;
+            margin-top: 20px;
+            font-size: 0.9rem;
+        }
+        .arch-card h6 {
+            color: #667eea;
+            font-weight: bold;
+        }
+        .param-count {
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            color: #28a745;
+        }
+        .task-description {
+            background: #e9ecef;
+            border-radius: 12px;
+            padding: 15px;
+            margin-top: 15px;
+            font-size: 0.9rem;
+            border-left: 5px solid #667eea;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .task-description strong {
+            color: #2c3e66;
+        }
+        details summary {
+            cursor: pointer;
+            font-weight: bold;
+            color: #667eea;
+        }
+        details summary:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <div class="container py-5">
+        <div class="row">
+            <div class="col-12 text-center mb-4">
+                <h1 class="display-5">🧠 Двухслойный персептрон</h1>
+                <p class="lead">3 входа (x₁, x₂, x₃) | Скрытый слой (6 нейронов) | Выход (y)</p>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col-md-5">
+                <!-- Карточка выбора задачи -->
+                <div class="card shadow-sm mb-3">
+                    <div class="card-body">
+                        <label class="form-label fw-bold">Выберите задачу из списка:</label>
+                        <select id="taskSelector" class="form-select" onchange="selectTask()">
+                            <option value="1">1. Три друга (чай/кофе)</option>
+                            <option value="2">2. Шляпа, зонт, перчатки</option>
+                            <option value="3">3. Три подруги (сок)</option>
+                            <option value="4">4. Три двери (красная, синяя, зелёная)</option>
+                            <option value="5">5. Три цвета флага</option>
+                            <option value="6">6. Три кандидата</option>
+                            <option value="7">7. Три замка и ключи</option>
+                            <option value="8">8. Три тайника</option>
+                            <option value="9">9. Три сигнала светофора</option>
+                            <option value="10">10. Три карты</option>
+                            <option value="11">11. Три этажа (лифт)</option>
+                            <option value="12">12. Три кнопки</option>
+                            <option value="13">13. Три проверки качества</option>
+                            <option value="14">14. Три лампочки</option>
+                            <option value="15">15. Три фонаря</option>
+                        </select>
+                        <div id="taskDescription" class="task-description mt-3">
+                            <!-- Сюда подгрузится описание задачи -->
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">📊 Таблица истинности (8 строк)</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted">✏️ Заполните столбец y (0 или 1) вручную, анализируя условие задачи:</p>
+                        
+                        <div class="scrollable-table">
+                            <table class="table table-bordered table-sm table-fixed">
+                                <thead class="table-dark">
+                                    <tr><th>#</th><th>x₁</th><th>x₂</th><th>x₃</th><th>y (введите)</th></tr>
+                                </thead>
+                                <tbody id="truthTable"></tbody>
+                              </table>
+                        </div>
+                        
+                        <div class="row mt-3">
+                            <div class="col-md-6">
+                                <label class="form-label">⚙️ Скорость обучения (η)</label>
+                                <input type="number" id="learningRate" class="form-control" value="0.5" step="0.1" min="0.01" max="1">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">🔄 Макс. эпох</label>
+                                <input type="number" id="maxEpochs" class="form-control" value="5000" step="500" min="100" max="20000">
+                            </div>
+                        </div>
+                        
+                        <div class="row mt-2">
+                            <div class="col-md-12">
+                                <label class="form-label">🎯 Целевая ошибка (MSE)</label>
+                                <input type="number" id="targetError" class="form-control" value="0.001" step="0.001" min="0.0001" max="0.1">
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid gap-2 mt-4">
+                            <button class="btn btn-success btn-lg" onclick="trainNetwork()">🚀 Обучить нейросеть</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-7">
+                <div class="weights-card shadow">
+                    <h4 class="mb-3">🎯 Результат обучения</h4>
+                    <div id="convergenceResult" class="text-center">
+                        <p class="mb-0">Нажмите "Обучить нейросеть"</p>
+                    </div>
+                </div>
+                
+                <!-- АРХИТЕКТУРА ПОД СПОЙЛЕРОМ -->
+                <details class="arch-card shadow-sm">
+                    <summary>🏗️ Подробная архитектура нейронной сети (нажмите, чтобы развернуть)</summary>
+                    <hr>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <p><strong>📥 Входной слой:</strong> 3 нейрона (x₁, x₂, x₃). Значения: 0 или 1. Без активации.</p>
+                            
+                            <p><strong>🔄 Скрытый слой:</strong> 6 нейронов (h₁ ... h₆).<br>
+                            - Каждый нейрон имеет <strong>3 веса</strong> (связи с каждым входом) и <strong>1 смещение (bias)</strong>.<br>
+                            - <strong>Функция активации:</strong> сигмоид (σ).<br>
+                            - Формула для j-го скрытого нейрона:<br>
+                            <code>hⱼ = σ(b₁ⱼ + w₁ⱼ₁·x₁ + w₁ⱼ₂·x₂ + w₁ⱼ₃·x₃)</code><br>
+                            - <strong>Всего параметров на скрытый слой:</strong> 6×3 = 18 весов + 6 смещений = <span class="param-count">24 параметра</span>.
+                            </p>
+                            
+                            <p><strong>📤 Выходной слой:</strong> 1 нейрон (y).<br>
+                            - Имеет <strong>6 весов</strong> (связи с каждым скрытым нейроном) и <strong>1 смещение</strong>.<br>
+                            - <strong>Функция активации:</strong> сигмоид (σ).<br>
+                            - Формула выходного нейрона:<br>
+                            <code>y = σ(b₂ + w₂₁·h₁ + w₂₂·h₂ + ... + w₂₆·h₆)</code><br>
+                            - <strong>Всего параметров на выходной слой:</strong> 6 весов + 1 смещение = <span class="param-count">7 параметров</span>.
+                            </p>
+                            
+                            <p><strong>📊 Итого обучаемых параметров:</strong> 24 + 7 = <span class="param-count">31 параметр</span>.<br>
+                            <strong>⚡ Функция активации (сигмоид):</strong> σ(z) = 1 / (1 + e⁻ᶻ).<br>
+                            - Преобразует сумму в диапазон (0, 1).<br>
+                            - Производная σ'(z) = σ(z)·(1-σ(z)) — нужна для обратного распространения ошибки.<br>
+                            - На выходе: y ≥ 0.5 → класс 1, иначе класс 0.
+                            </p>
+                            <p class="text-muted small mb-0">📌 Примечание: все 7 нейронов (6 скрытых + 1 выходной) используют сигмоид.</p>
+                        </div>
+                    </div>
+                </details>
+                
+                <div class="card shadow-sm mt-4">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">✅ Проверка на обучающей выборке</h5>
+                    </div>
+                    <div class="card-body" id="predictions">
+                        <p class="text-muted text-center">Обучите сеть, чтобы увидеть результаты</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // ---- Нейросеть с 1 скрытым слоем (6 нейронов) ----
+        class NeuralNetwork {
+            constructor(learningRate = 0.5) {
+                this.lr = learningRate;
+                this.hiddenSize = 6;
+                this.W1 = Array(this.hiddenSize).fill().map(() => Array(3).fill().map(() => Math.random() * 0.6 - 0.3));
+                this.b1 = Array(this.hiddenSize).fill().map(() => Math.random() * 0.6 - 0.3);
+                this.W2 = Array(1).fill().map(() => Array(this.hiddenSize).fill().map(() => Math.random() * 0.6 - 0.3));
+                this.b2 = Array(1).fill().map(() => Math.random() * 0.6 - 0.3);
+            }
+            sigmoid(x) { return 1 / (1 + Math.exp(-x)); }
+            sigmoidDerivative(x) { const s = this.sigmoid(x); return s * (1 - s); }
+            
+            forward(x1, x2, x3) {
+                const inputs = [x1, x2, x3];
+                let hiddenOutputs = [], hiddenSums = [];
+                for (let i = 0; i < this.hiddenSize; i++) {
+                    let sum = this.b1[i];
+                    for (let j = 0; j < 3; j++) sum += this.W1[i][j] * inputs[j];
+                    hiddenSums.push(sum);
+                    hiddenOutputs.push(this.sigmoid(sum));
+                }
+                let outputSum = this.b2[0];
+                for (let i = 0; i < this.hiddenSize; i++) outputSum += this.W2[0][i] * hiddenOutputs[i];
+                const output = this.sigmoid(outputSum);
+                return { output, hiddenOutputs, hiddenSums, outputSum };
+            }
+            
+            trainExample(x1, x2, x3, target) {
+                const inputs = [x1, x2, x3];
+                const fp = this.forward(x1, x2, x3);
+                const outputError = target - fp.output;
+                const deltaOutput = outputError * this.sigmoidDerivative(fp.outputSum);
+                const deltaHidden = Array(this.hiddenSize).fill(0);
+                for (let i = 0; i < this.hiddenSize; i++) {
+                    deltaHidden[i] = deltaOutput * this.W2[0][i] * this.sigmoidDerivative(fp.hiddenSums[i]);
+                }
+                for (let i = 0; i < this.hiddenSize; i++) this.W2[0][i] += this.lr * deltaOutput * fp.hiddenOutputs[i];
+                this.b2[0] += this.lr * deltaOutput;
+                for (let i = 0; i < this.hiddenSize; i++) {
+                    for (let j = 0; j < 3; j++) this.W1[i][j] += this.lr * deltaHidden[i] * inputs[j];
+                    this.b1[i] += this.lr * deltaHidden[i];
+                }
+                return Math.abs(outputError);
+            }
+            
+            predict(x1, x2, x3) { return this.forward(x1, x2, x3).output >= 0.5 ? 1 : 0; }
+            predictRaw(x1, x2, x3) { return this.forward(x1, x2, x3).output; }
+            
+            trainUntilError(trainingData, maxEpochs, targetMSE) {
+                for (let epoch = 1; epoch <= maxEpochs; epoch++) {
+                    const shuffled = [...trainingData];
+                    for (let i = shuffled.length - 1; i > 0; i--) {
+                        const j = Math.floor(Math.random() * (i + 1));
+                        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+                    }
+                    for (const ex of shuffled) this.trainExample(ex.x1, ex.x2, ex.x3, ex.target);
+                    let sumSq = 0;
+                    for (const ex of trainingData) {
+                        const pred = this.predictRaw(ex.x1, ex.x2, ex.x3);
+                        const err = ex.target - pred;
+                        sumSq += err * err;
+                    }
+                    const mse = sumSq / trainingData.length;
+                    if (mse <= targetMSE) return { converged: true, epoch: epoch, mse: mse };
+                }
+                return { converged: false, epoch: maxEpochs, mse: null };
+            }
+        }
+        
+        // ---- Генерация таблицы истинности (все x1,x2,x3 заполнены, y пустые) ----
+        function generateTruthTable() {
+            const tbody = document.getElementById('truthTable');
+            tbody.innerHTML = '';
+            for (let i = 0; i < 8; i++) {
+                const x1 = (i >> 2) & 1;
+                const x2 = (i >> 1) & 1;
+                const x3 = i & 1;
+                const row = tbody.insertRow();
+                row.insertCell(0).innerText = i+1;
+                row.insertCell(1).innerHTML = `<input type="number" class="form-control form-control-sm x1" value="${x1}" min="0" max="1" step="1" style="width:70px" readonly>`;
+                row.insertCell(2).innerHTML = `<input type="number" class="form-control form-control-sm x2" value="${x2}" min="0" max="1" step="1" style="width:70px" readonly>`;
+                row.insertCell(3).innerHTML = `<input type="number" class="form-control form-control-sm x3" value="${x3}" min="0" max="1" step="1" style="width:70px" readonly>`;
+                row.insertCell(4).innerHTML = `<input type="number" class="form-control form-control-sm y-target" value="0" min="0" max="1" step="1" style="width:80px">`;
+            }
+        }
+        
+        // ---- Описания задач (только текст условия и вопросов) ----
+        const tasksText = {
+            1: `<strong>Три друга — Анна (x1), Борис (x2), Виктор (x3)</strong> — каждый заказал чай (0) или кофе (1).<br><br>
+                <strong>Правила:</strong><br>
+                1. Если Анна заказала кофе, то Борис заказал чай.<br>
+                2. Борис и Виктор не заказали одинаковый напиток.<br>
+                3. Хотя бы один из троих заказал чай.<br><br>
+                <strong>Вопросы:</strong><br>
+                • Возможно ли, чтобы все трое заказали кофе?<br>
+                • Сколько всего существует комбинаций заказов, удовлетворяющих правилам?<br>
+                • Что можно сказать про напиток Виктора, если известно, что Анна заказала чай?`,
+            2: `<strong>Шляпа (x1), Зонт (x2), Перчатки (x3)</strong> — чёрный (1) или белый (0).<br><br>
+                <strong>Правила:</strong><br>
+                1. Если шляпа чёрная, то зонт белый.<br>
+                2. Если зонт белый, то перчатки чёрные.<br>
+                3. Шляпа и перчатки одного цвета.<br><br>
+                <strong>Вопросы:</strong><br>
+                • Может ли шляпа быть чёрной?<br>
+                • Сколько всего существует комбинаций цветов?<br>
+                • Если известно, что зонт чёрный, то что можно сказать о цвете перчаток?`,
+            3: `<strong>Маша (x1), Саша (x2), Даша (x3)</strong> — апельсиновый (1) или яблочный (0) сок.<br><br>
+                <strong>Правила:</strong><br>
+                1. Если Маша пьёт апельсиновый, то Саша — яблочный.<br>
+                2. Если Саша пьёт яблочный, то Даша — апельсиновый.<br>
+                3. Маша и Даша пьют одинаковый сок.<br><br>
+                <strong>Вопросы:</strong><br>
+                • Может ли Маша пить апельсиновый сок?<br>
+                • Сколько существует различных комбинаций напитков?<br>
+                • Если Саша пьёт яблочный сок, то что можно сказать о напитке Даши?`,
+            4: `<strong>Двери: красная (x1), синяя (x2), зелёная (x3)</strong> — открыта (1) или закрыта (0).<br><br>
+                <strong>Правила:</strong><br>
+                1. Красная и синяя не могут быть открыты одновременно.<br>
+                2. Если синяя закрыта, то зелёная открыта.<br>
+                3. Открыта ровно одна дверь, и это не красная.<br><br>
+                <strong>Вопросы:</strong><br>
+                • Какая дверь открыта?<br>
+                • Может ли быть открыта зелёная дверь?<br>
+                • Если зелёная закрыта, то что с синей?`,
+            5: `<strong>Полосы флага: верхняя (x1), средняя (x2), нижняя (x3)</strong> — синяя (1) или красная (0).<br><br>
+                <strong>Правила:</strong><br>
+                1. Верхняя и средняя разного цвета.<br>
+                2. Средняя и нижняя одного цвета.<br>
+                3. Не все полосы красные.<br><br>
+                <strong>Вопросы:</strong><br>
+                • Какого цвета нижняя полоса?<br>
+                • Сколько всего решений?<br>
+                • Какого цвета верхняя полоса?`,
+            6: `<strong>Кандидаты: Иванов (x1), Петров (x2), Сидоров (x3)</strong> — победил (1) или проиграл (0).<br><br>
+                <strong>Правила:</strong><br>
+                1. Победитель ровно один.<br>
+                2. Если победил Иванов, то Петров проиграл.<br>
+                3. Победил не Сидоров.<br><br>
+                <strong>Вопросы:</strong><br>
+                • Кто победил?<br>
+                • Мог ли победить Петров?<br>
+                • Верно ли, что Иванов проиграл?`,
+            7: `<strong>Замки: первый (x1), второй (x2), третий (x3)</strong> — открыт (1) или закрыт (0).<br><br>
+                <strong>Правила:</strong><br>
+                1. Первый замок открыт только если открыт второй.<br>
+                2. Второй замок открыт только если закрыт третий.<br>
+                3. Все замки не могут быть одновременно закрыты.<br><br>
+                <strong>Вопросы:</strong><br>
+                • Сколько замков открыто?<br>
+                • Какой замок точно закрыт?<br>
+                • Открыт ли второй замок?`,
+            8: `<strong>Тайники: первый (x1), второй (x2), третий (x3)</strong> — есть клад (1) или нет (0).<br><br>
+                <strong>Правила:</strong><br>
+                1. В первом и втором тайниках не может быть одновременно клада.<br>
+                2. Клад есть в одном или двух тайниках.<br>
+                3. Если в третьем тайнике есть клад, то в первом его нет.<br><br>
+                <strong>Вопросы:</strong><br>
+                • В каких тайниках есть клад?<br>
+                • Пуст ли первый тайник?<br>
+                • Есть ли клад в третьем?`,
+            9: `<strong>Сигналы: красный (x1), жёлтый (x2), зелёный (x3)</strong> — горит (1) или нет (0).<br><br>
+                <strong>Правила:</strong><br>
+                1. Красный и зелёный не горят одновременно.<br>
+                2. Жёлтый горит тогда и только тогда, когда не горит зелёный.<br>
+                3. Горит один или два сигнала.<br><br>
+                <strong>Вопросы:</strong><br>
+                • Какой сигнал горит?<br>
+                • Может ли гореть красный?<br>
+                • Верно ли, что зелёный не горит?`,
+            10: `<strong>Карты: первая (x1), вторая (x2), третья (x3)</strong> — чёрная (1) или красная (0).<br><br>
+                <strong>Правила:</strong><br>
+                1. Количество чёрных карт нечётно.<br>
+                2. Если первая карта чёрная, то вторая красная.<br>
+                3. Третья карта чёрная, а первая — красная.<br><br>
+                <strong>Вопросы:</strong><br>
+                • Какого цвета вторая карта?<br>
+                • Сколько всего решений?<br>
+                • Чётно ли количество чёрных карт?`,
+            11: `<strong>Этажи: первый (x1), второй (x2), третий (x3)</strong> — лифт остановился (1) или нет (0).<br><br>
+                <strong>Правила:</strong><br>
+                1. Ровно на одном этаже лифт остановился.<br>
+                2. Если лифт остановился на первом, то он не останавливался на втором.<br>
+                3. Лифт остановился не на третьем, а на первом или втором.<br><br>
+                <strong>Вопросы:</strong><br>
+                • На каком этаже остановился лифт?<br>
+                • Мог ли он остановиться на втором этаже?<br>
+                • Верно ли, что первый этаж не выбран?`,
+            12: `<strong>Кнопки: первая (x1), вторая (x2), третья (x3)</strong> — нажата (1) или нет (0).<br><br>
+                <strong>Правила:</strong><br>
+                1. Нажата ровно одна кнопка.<br>
+                2. Если первая нажата, то вторая не нажата.<br>
+                3. Вторая и третья не могут быть нажаты одновременно.<br><br>
+                <strong>Вопросы:</strong><br>
+                • Какая кнопка нажата?<br>
+                • Может ли быть нажата первая кнопка?<br>
+                • Сколько всего решений?`,
+            13: `<strong>Детали: первая (x1), вторая (x2), третья (x3)</strong> — годная (1) или брак (0).<br><br>
+                <strong>Правила:</strong><br>
+                1. Первая и вторая детали обе годные или обе бракованные.<br>
+                2. Если вторая деталь годная, то третья — брак.<br>
+                3. Годных деталей ровно одна.<br><br>
+                <strong>Вопросы:</strong><br>
+                • Какая деталь годная?<br>
+                • Бракована ли вторая деталь?<br>
+                • Сколько всего годных деталей?`,
+            14: `<strong>Лампочки: левая (x1), средняя (x2), правая (x3)</strong> — горит (1) или нет (0).<br><br>
+                <strong>Правила:</strong><br>
+                1. Левая и правая не могут гореть одновременно.<br>
+                2. Если средняя горит, то левая не горит.<br>
+                3. Горит ровно одна лампочка, и это не правая.<br><br>
+                <strong>Вопросы:</strong><br>
+                • Какая лампочка горит?<br>
+                • Может ли гореть средняя лампочка?<br>
+                • Сколько всего решений?`,
+            15: `<strong>Фонари: у дома (x1), у ворот (x2), у дороги (x3)</strong> — включён (1) или выключен (0).<br><br>
+                <strong>Правила:</strong><br>
+                1. Фонарь у дома включён только если включён фонарь у ворот.<br>
+                2. Фонарь у ворот включён только если выключен фонарь у дороги.<br>
+                3. Включён хотя бы один фонарь, но не более двух.<br><br>
+                <strong>Вопросы:</strong><br>
+                • Сколько фонарей включено?<br>
+                • Какой фонарь точно выключен?<br>
+                • Может ли фонарь у дома быть включён?`
+        };
+        
+        function selectTask() {
+            const taskId = document.getElementById('taskSelector').value;
+            const taskText = tasksText[taskId];
+            if (taskText) {
+                document.getElementById('taskDescription').innerHTML = taskText;
+            }
+        }
+        
+        function getTrainingData() {
+            const rows = document.querySelectorAll('#truthTable tr');
+            const data = [];
+            for (let row of rows) {
+                const yInput = row.querySelector('.y-target');
+                let yValue = parseFloat(yInput.value);
+                if (isNaN(yValue)) yValue = 0;
+                data.push({
+                    x1: parseFloat(row.querySelector('.x1').value),
+                    x2: parseFloat(row.querySelector('.x2').value),
+                    x3: parseFloat(row.querySelector('.x3').value),
+                    target: yValue
+                });
+            }
+            return data;
+        }
+        
+        function displayPredictions(net, data) {
+            const container = document.getElementById('predictions');
+            let html = '<table class="table table-sm table-bordered"><thead class="table-light"><tr><th>x₁</th><th>x₂</th><th>x₃</th><th>y ожид.</th><th>y предск.</th><th>Вероятность</th><th>Результат</th></tr></thead><tbody>';
+            let correct = 0;
+            for (let ex of data) {
+                const pred = net.predict(ex.x1, ex.x2, ex.x3);
+                const prob = net.predictRaw(ex.x1, ex.x2, ex.x3).toFixed(4);
+                const ok = (pred === ex.target);
+                if (ok) correct++;
+                html += `<tr>
+                            <td>${ex.x1}</td><td>${ex.x2}</td><td>${ex.x3}</td>
+                            <td>${ex.target}</td>
+                            <td><strong>${pred}</strong></td>
+                            <td><code>${prob}</code></td>
+                            <td>${ok ? '✅' : '❌'}</td>
+                        </tr>`;
+            }
+            html += `</tbody></table><div class="alert ${correct===data.length?'alert-success':'alert-warning'} text-center">Точность: ${(correct/data.length*100).toFixed(1)}% (${correct}/${data.length})</div>`;
+            container.innerHTML = html;
+        }
+        
+        function showAlert(type, msg) {
+            const div = document.createElement('div');
+            div.className = `alert alert-${type} alert-dismissible fade show position-fixed top-0 start-50 translate-middle-x mt-3`;
+            div.style.zIndex = '9999';
+            div.style.minWidth = '350px';
+            div.innerHTML = `${msg}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
+            document.body.appendChild(div);
+            setTimeout(() => div.remove(), 3000);
+        }
+        
+        async function trainNetwork() {
+            const data = getTrainingData();
+            const lr = parseFloat(document.getElementById('learningRate').value);
+            const maxEpochs = parseInt(document.getElementById('maxEpochs').value);
+            const targetErr = parseFloat(document.getElementById('targetError').value);
+            
+            const net = new NeuralNetwork(lr);
+            const btn = document.querySelector('.btn-success');
+            const origText = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Обучение...';
+            btn.disabled = true;
+            
+            document.getElementById('predictions').innerHTML = '<p class="text-muted text-center">Обучение...</p>';
+            document.getElementById('convergenceResult').innerHTML = '<p class="mb-0">⏳ Идёт обучение...</p>';
+            
+            setTimeout(() => {
+                const result = net.trainUntilError(data, maxEpochs, targetErr);
+                const resultDiv = document.getElementById('convergenceResult');
+                
+                if (result.converged) {
+                    resultDiv.innerHTML = `<div class="convergence-badge text-success bg-white rounded p-3">🎉 СОШЛАСЬ на эпохе ${result.epoch} 🎉<br><small>MSE = ${result.mse.toExponential(4)} ≤ ${targetErr}</small></div>`;
+                    showAlert('success', `✅ Сошлась на эпохе ${result.epoch}`);
+                } else {
+                    resultDiv.innerHTML = `<div class="convergence-badge text-danger bg-white rounded p-3">⚠️ НЕ СОШЛАСЬ за ${maxEpochs} эпох<br><small>Целевая ошибка ${targetErr} не достигнута</small></div>`;
+                    showAlert('warning', `⚠️ Не сошлась за ${maxEpochs} эпох`);
+                }
+                
+                displayPredictions(net, data);
+                btn.innerHTML = origText;
+                btn.disabled = false;
+            }, 50);
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            generateTruthTable();
+            selectTask(); // загружаем первую задачу
+        });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
