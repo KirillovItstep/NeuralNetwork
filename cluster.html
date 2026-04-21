@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Нейросеть — предсказание сдачи экзамена студентом</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <style>
+        .weights-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        .weights-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            font-family: 'Courier New', monospace;
+        }
+        .convergence-badge {
+            font-size: 1.2rem;
+            font-weight: bold;
+            padding: 10px;
+            border-radius: 10px;
+        }
+        .scrollable-table {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .table-fixed td, .table-fixed th {
+            text-align: center;
+            vertical-align: middle;
+        }
+        .table td, .table th {
+            line-height: 1;
+            padding: 5px 3px;
+        }
+        th {
+            cursor: pointer;
+            user-select: none;
+        }
+        th:hover {
+            background-color: #3a6ea5;
+        }
+        .arch-card {
+            background: #f0f2f5;
+            border-radius: 15px;
+            padding: 15px;
+            margin-top: 20px;
+            font-size: 0.9rem;
+        }
+        .param-count {
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            color: #28a745;
+        }
+        .prediction-result {
+            font-size: 1.8rem;
+            font-weight: bold;
+            text-align: center;
+            padding: 20px;
+            border-radius: 15px;
+        }
+        .prediction-pass {
+            background: #d4edda;
+            color: #155724;
+            border: 2px solid #28a745;
+        }
+        .prediction-fail {
+            background: #f8d7da;
+            color: #721c24;
+            border: 2px solid #dc3545;
+        }
+        .input-group-custom {
+            margin-bottom: 15px;
+        }
+        .input-group-custom label {
+            font-weight: bold;
+            margin-bottom: 5px;
+            display: block;
+        }
+        .input-group-custom input {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+        .input-group-custom input:focus {
+            border-color: #667eea;
+            outline: none;
+        }
+        .btn-predict {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            font-weight: bold;
+            cursor: pointer;
+            width: 100%;
+            transition: transform 0.1s;
+        }
+        .btn-predict:active {
+            transform: scale(0.97);
+        }
+        .stat-card {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border-radius: 12px;
+            padding: 12px;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .stat-number {
+            font-size: 1.4rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <div class="container py-5">
+        <div class="row">
+            <div class="col-12 text-center mb-4">
+                <h1 class="display-5">🧠 Нейросеть: предсказание сдачи экзамена</h1>
+                <p class="lead">4 входа | Скрытый слой (12 нейронов) | Выход (сдал/не сдал)</p>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col-md-6">
+                <!-- Карточка обучения -->
+                <div class="card shadow-sm mb-3">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">📊 Обучающая выборка (50 студентов)</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted">Выборка из 50 записей с признаками успеваемости</p>
+                        
+                        <div class="scrollable-table" id="trainingTableContainer">
+                            <table class="table table-bordered table-sm table-fixed">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th style="cursor: pointer;" onclick="sortTrainingData(0)">№</th>
+                                        <th style="cursor: pointer;" onclick="sortTrainingData(1)">Посещаемость</th>
+                                        <th style="cursor: pointer;" onclick="sortTrainingData(2)">Отвлечение</th>
+                                        <th style="cursor: pointer;" onclick="sortTrainingData(3)">Контрольные</th>
+                                        <th style="cursor: pointer;" onclick="sortTrainingData(4)">Аудиторная</th>
+                                        <th style="cursor: pointer;" onclick="sortTrainingData(5)">Сдал</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="trainingTable"></tbody>
+                            </table>
+                        </div>
+                        
+                        <div class="row mt-3">
+                            <div class="col-md-6">
+                                <label class="form-label">⚙️ Скорость обучения (η)</label>
+                                <input type="number" id="learningRate" class="form-control" value="0.3" step="0.05" min="0.01" max="1">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">🔄 Макс. эпох</label>
+                                <input type="number" id="maxEpochs" class="form-control" value="2000" step="200" min="100" max="10000">
+                            </div>
+                        </div>
+                        
+                        <div class="row mt-2">
+                            <div class="col-md-12">
+                                <label class="form-label">🎯 Целевая ошибка (MSE)</label>
+                                <input type="number" id="targetError" class="form-control" value="0.01" step="0.005" min="0.001" max="0.1">
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid gap-2 mt-4">
+                            <button class="btn btn-success btn-lg" onclick="trainNetwork()">🚀 Обучить нейросеть</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <!-- Результаты обучения -->
+                <div class="weights-card shadow">
+                    <h4 class="mb-3">🎯 Результат обучения</h4>
+                    <div id="convergenceResult" class="text-center">
+                        <p class="mb-0">Нажмите "Обучить нейросеть"</p>
+                    </div>
+                </div>
+                
+                <!-- Архитектура под спойлером -->
+                <details class="arch-card shadow-sm">
+                    <summary style="cursor: pointer; font-weight: bold; color: #667eea;">🏗️ Архитектура нейронной сети</summary>
+                    <hr>
+                    <p><strong>📥 Входной слой:</strong> 4 нейрона (посещаемость, отвлечение, контрольные, аудиторная)</p>
+                    <p><strong>🔄 Скрытый слой:</strong> 12 нейронов (ReLU)</p>
+                    <p><strong>📤 Выходной слой:</strong> 1 нейрон (сигмоид) → сдал (≥0.5) или не сдал (&lt;0.5)</p>
+                    <p><strong>⚙️ Параметры:</strong> 4×12 + 12 + 12×1 + 1 = <span class="param-count">73 обучаемых параметра</span></p>
+                </details>
+                
+                <!-- Проверка на выборке -->
+                <div class="card shadow-sm mt-4">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">✅ Проверка на обучающей выборке</h5>
+                    </div>
+                    <div class="card-body" id="predictions">
+                        <p class="text-muted text-center">Обучите сеть, чтобы увидеть результаты</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Блок предсказания для новых данных -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">🔮 Предсказание для нового студента</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="input-group-custom">
+                                    <label>📅 Посещаемость (%)</label>
+                                    <input type="number" id="predVisit" class="form-control" value="80" min="0" max="100" step="1">
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="input-group-custom">
+                                    <label>💬 Отвлечение (%)</label>
+                                    <input type="number" id="predDistract" class="form-control" value="30" min="0" max="100" step="1">
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="input-group-custom">
+                                    <label>📝 Контрольные (1-10)</label>
+                                    <input type="number" id="predTests" class="form-control" value="7" min="1" max="10" step="0.5">
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="input-group-custom">
+                                    <label>✏️ Аудиторная работа (1-10)</label>
+                                    <input type="number" id="predClasswork" class="form-control" value="7" min="1" max="10" step="0.5">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="text-center mt-3">
+                            <button class="btn-predict" onclick="predictStudent()">🎯 Предсказать результат</button>
+                        </div>
+                        <div id="predictionResult" class="mt-3" style="display: none;">
+                            <div class="prediction-result" id="predictionText"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // ========== ОБУЧАЮЩАЯ ВЫБОРКА (50 записей) ==========
+        const trainingDataRaw = [
+            { visit: 95, distract: 20, tests: 9, classwork: 8, passed: 1 },
+            { visit: 85, distract: 35, tests: 7, classwork: 9, passed: 1 },
+            { visit: 92, distract: 15, tests: 8, classwork: 9, passed: 1 },
+            { visit: 45, distract: 70, tests: 3, classwork: 4, passed: 0 },
+            { visit: 30, distract: 85, tests: 2, classwork: 2, passed: 0 },
+            { visit: 88, distract: 25, tests: 9, classwork: 8, passed: 1 },
+            { visit: 75, distract: 55, tests: 5, classwork: 7, passed: 1 },
+            { visit: 50, distract: 65, tests: 4, classwork: 5, passed: 0 },
+            { visit: 98, distract: 10, tests: 10, classwork: 9, passed: 1 },
+            { visit: 65, distract: 50, tests: 6, classwork: 5, passed: 1 },
+            { visit: 40, distract: 80, tests: 3, classwork: 3, passed: 0 },
+            { visit: 82, distract: 30, tests: 7, classwork: 8, passed: 1 },
+            { visit: 90, distract: 25, tests: 8, classwork: 7, passed: 1 },
+            { visit: 35, distract: 75, tests: 4, classwork: 3, passed: 0 },
+            { visit: 78, distract: 45, tests: 6, classwork: 6, passed: 1 },
+            { visit: 55, distract: 60, tests: 5, classwork: 4, passed: 0 },
+            { visit: 96, distract: 12, tests: 9, classwork: 9, passed: 1 },
+            { visit: 70, distract: 58, tests: 5, classwork: 6, passed: 1 },
+            { visit: 25, distract: 90, tests: 2, classwork: 2, passed: 0 },
+            { visit: 88, distract: 28, tests: 8, classwork: 7, passed: 1 },
+            { visit: 48, distract: 68, tests: 4, classwork: 4, passed: 0 },
+            { visit: 93, distract: 18, tests: 9, classwork: 8, passed: 1 },
+            { visit: 72, distract: 52, tests: 6, classwork: 6, passed: 1 },
+            { visit: 38, distract: 82, tests: 3, classwork: 3, passed: 0 },
+            { visit: 85, distract: 32, tests: 7, classwork: 8, passed: 1 },
+            { visit: 60, distract: 62, tests: 5, classwork: 4, passed: 0 },
+            { visit: 91, distract: 20, tests: 8, classwork: 9, passed: 1 },
+            { visit: 42, distract: 75, tests: 3, classwork: 4, passed: 0 },
+            { visit: 80, distract: 40, tests: 6, classwork: 7, passed: 1 },
+            { visit: 33, distract: 88, tests: 2, classwork: 2, passed: 0 },
+            { visit: 97, distract: 8, tests: 10, classwork: 9, passed: 1 },
+            { visit: 68, distract: 48, tests: 6, classwork: 5, passed: 1 },
+            { visit: 52, distract: 70, tests: 4, classwork: 4, passed: 0 },
+            { visit: 86, distract: 22, tests: 8, classwork: 8, passed: 1 },
+            { visit: 44, distract: 78, tests: 3, classwork: 3, passed: 0 },
+            { visit: 94, distract: 16, tests: 9, classwork: 9, passed: 1 },
+            { visit: 76, distract: 50, tests: 6, classwork: 6, passed: 1 },
+            { visit: 28, distract: 92, tests: 2, classwork: 1, passed: 0 },
+            { visit: 89, distract: 24, tests: 8, classwork: 8, passed: 1 },
+            { visit: 62, distract: 55, tests: 5, classwork: 5, passed: 1 },
+            { visit: 41, distract: 72, tests: 3, classwork: 4, passed: 0 },
+            { visit: 84, distract: 35, tests: 7, classwork: 7, passed: 1 },
+            { visit: 56, distract: 65, tests: 4, classwork: 5, passed: 0 },
+            { visit: 99, distract: 5, tests: 10, classwork: 10, passed: 1 },
+            { visit: 47, distract: 69, tests: 4, classwork: 4, passed: 0 },
+            { visit: 73, distract: 44, tests: 6, classwork: 7, passed: 1 },
+            { visit: 34, distract: 86, tests: 2, classwork: 3, passed: 0 },
+            { visit: 81, distract: 38, tests: 7, classwork: 6, passed: 1 },
+            { visit: 66, distract: 58, tests: 5, classwork: 5, passed: 0 },
+            { visit: 77, distract: 42, tests: 7, classwork: 7, passed: 1 }
+        ];
+        
+        // Нормализация данных (Min-Max)
+        function normalizeData() {
+            const visits = trainingDataRaw.map(d => d.visit);
+            const distracts = trainingDataRaw.map(d => d.distract);
+            const tests = trainingDataRaw.map(d => d.tests);
+            const classworks = trainingDataRaw.map(d => d.classwork);
+            
+            const minMax = {
+                visit: { min: Math.min(...visits), max: Math.max(...visits) },
+                distract: { min: Math.min(...distracts), max: Math.max(...distracts) },
+                tests: { min: Math.min(...tests), max: Math.max(...tests) },
+                classwork: { min: Math.min(...classworks), max: Math.max(...classworks) }
+            };
+            
+            const normalized = trainingDataRaw.map(d => ({
+                x1: (d.visit - minMax.visit.min) / (minMax.visit.max - minMax.visit.min),
+                x2: (d.distract - minMax.distract.min) / (minMax.distract.max - minMax.distract.min),
+                x3: (d.tests - minMax.tests.min) / (minMax.tests.max - minMax.tests.min),
+                x4: (d.classwork - minMax.classwork.min) / (minMax.classwork.max - minMax.classwork.min),
+                target: d.passed
+            }));
+            
+            return { normalized, minMax };
+        }
+        
+        let normResult = normalizeData();
+        let trainedNet = null;
+        
+        // ========== СОРТИРОВКА ТАБЛИЦЫ ==========
+        let currentSortColumn = null;
+        let currentSortDirection = 'asc';
+        
+        function sortTrainingData(columnIndex) {
+            const fields = ['index', 'visit', 'distract', 'tests', 'classwork', 'passed'];
+            const field = fields[columnIndex];
+            
+            if (currentSortColumn === columnIndex) {
+                currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSortColumn = columnIndex;
+                currentSortDirection = 'asc';
+            }
+            
+            const sortedData = [...trainingDataRaw];
+            
+            sortedData.sort((a, b) => {
+                let valA, valB;
+                
+                if (field === 'index') {
+                    valA = trainingDataRaw.indexOf(a);
+                    valB = trainingDataRaw.indexOf(b);
+                } else if (field === 'passed') {
+                    valA = a[field];
+                    valB = b[field];
+                } else {
+                    valA = a[field];
+                    valB = b[field];
+                }
+                
+                if (currentSortDirection === 'asc') {
+                    return valA > valB ? 1 : (valA < valB ? -1 : 0);
+                } else {
+                    return valA < valB ? 1 : (valA > valB ? -1 : 0);
+                }
+            });
+            
+            displayTrainingTableWithData(sortedData);
+            updateSortArrows();
+        }
+        
+        function displayTrainingTableWithData(data) {
+            const tbody = document.getElementById('trainingTable');
+            tbody.innerHTML = '';
+            data.forEach((student) => {
+                const row = tbody.insertRow();
+                row.insertCell(0).innerText = trainingDataRaw.indexOf(student) + 1;
+                row.insertCell(1).innerText = student.visit;
+                row.insertCell(2).innerText = student.distract;
+                row.insertCell(3).innerText = student.tests;
+                row.insertCell(4).innerText = student.classwork;
+                row.insertCell(5).innerHTML = student.passed === 1 ? '✅ Сдал' : '❌ Не сдал';
+            });
+        }
+        
+        function updateSortArrows() {
+            const headers = document.querySelectorAll('#trainingTableContainer th');
+            headers.forEach((th, idx) => {
+                if (idx === currentSortColumn) {
+                    let text = th.innerText.replace(/[▲▼]/g, '').trim();
+                    th.innerText = text + (currentSortDirection === 'asc' ? ' ▲' : ' ▼');
+                } else {
+                    let text = th.innerText.replace(/[▲▼]/g, '').trim();
+                    th.innerText = text;
+                }
+            });
+        }
+        
+        // ========== НЕЙРОСЕТЬ ==========
+        class StudentNeuralNetwork {
+            constructor(inputSize = 4, hiddenSize = 12, learningRate = 0.3) {
+                this.lr = learningRate;
+                this.inputSize = inputSize;
+                this.hiddenSize = hiddenSize;
+                
+                const w1Scale = Math.sqrt(2.0 / inputSize);
+                const w2Scale = Math.sqrt(2.0 / hiddenSize);
+                
+                this.W1 = Array(hiddenSize).fill().map(() => 
+                    Array(inputSize).fill().map(() => (Math.random() - 0.5) * w1Scale * 2)
+                );
+                this.b1 = Array(hiddenSize).fill().map(() => 0);
+                
+                this.W2 = Array(1).fill().map(() => 
+                    Array(hiddenSize).fill().map(() => (Math.random() - 0.5) * w2Scale * 2)
+                );
+                this.b2 = Array(1).fill().map(() => 0);
+            }
+            
+            relu(x) { return Math.max(0, x); }
+            reluDerivative(x) { return x > 0 ? 1 : 0; }
+            sigmoid(x) { return 1 / (1 + Math.exp(-x)); }
+            sigmoidDerivative(x) { const s = this.sigmoid(x); return s * (1 - s); }
+            
+            forward(inputs) {
+                let hidden = [];
+                let hiddenSums = [];
+                for (let i = 0; i < this.hiddenSize; i++) {
+                    let sum = this.b1[i];
+                    for (let j = 0; j < this.inputSize; j++) {
+                        sum += this.W1[i][j] * inputs[j];
+                    }
+                    hiddenSums.push(sum);
+                    hidden.push(this.relu(sum));
+                }
+                
+                let outputSum = this.b2[0];
+                for (let i = 0; i < this.hiddenSize; i++) {
+                    outputSum += this.W2[0][i] * hidden[i];
+                }
+                const output = this.sigmoid(outputSum);
+                
+                return { output, hidden, hiddenSums, outputSum };
+            }
+            
+            predict(inputs) {
+                return this.forward(inputs).output >= 0.5 ? 1 : 0;
+            }
+            
+            predictProb(inputs) {
+                return this.forward(inputs).output;
+            }
+            
+            trainExample(inputs, target) {
+                const fp = this.forward(inputs);
+                
+                const outputError = target - fp.output;
+                const deltaOutput = outputError * this.sigmoidDerivative(fp.outputSum);
+                
+                const deltaHidden = Array(this.hiddenSize).fill(0);
+                for (let i = 0; i < this.hiddenSize; i++) {
+                    deltaHidden[i] = deltaOutput * this.W2[0][i] * this.reluDerivative(fp.hiddenSums[i]);
+                }
+                
+                for (let i = 0; i < this.hiddenSize; i++) {
+                    this.W2[0][i] += this.lr * deltaOutput * fp.hidden[i];
+                }
+                this.b2[0] += this.lr * deltaOutput;
+                
+                for (let i = 0; i < this.hiddenSize; i++) {
+                    for (let j = 0; j < this.inputSize; j++) {
+                        this.W1[i][j] += this.lr * deltaHidden[i] * inputs[j];
+                    }
+                    this.b1[i] += this.lr * deltaHidden[i];
+                }
+                
+                return Math.abs(outputError);
+            }
+            
+            trainBatch(data, epochs, targetMSE, onProgress) {
+                for (let epoch = 1; epoch <= epochs; epoch++) {
+                    const shuffled = [...data];
+                    for (let i = shuffled.length - 1; i > 0; i--) {
+                        const j = Math.floor(Math.random() * (i + 1));
+                        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+                    }
+                    
+                    for (const ex of shuffled) {
+                        this.trainExample([ex.x1, ex.x2, ex.x3, ex.x4], ex.target);
+                    }
+                    
+                    let sumSq = 0;
+                    for (const ex of data) {
+                        const pred = this.predictProb([ex.x1, ex.x2, ex.x3, ex.x4]);
+                        const err = ex.target - pred;
+                        sumSq += err * err;
+                    }
+                    const mse = sumSq / data.length;
+                    
+                    if (onProgress) onProgress(epoch, mse);
+                    if (mse <= targetMSE) return { converged: true, epoch: epoch, mse: mse };
+                }
+                return { converged: false, epoch: epochs, mse: null };
+            }
+        }
+        
+        function displayPredictions(net, data, minMax) {
+            const container = document.getElementById('predictions');
+            let html = '<div class="scrollable-table"><table class="table table-sm table-bordered">';
+            html += '<thead class="table-light"><tr><th>Посещ.</th><th>Отвл.</th><th>Контр.</th><th>Аудит.</th><th>Ожид.</th><th>Предск.</th><th>Вероятн.</th><th>Результат</th></tr></thead><tbody>';
+            
+            let correct = 0;
+            for (let i = 0; i < data.length; i++) {
+                const ex = data[i];
+                const pred = net.predict([ex.x1, ex.x2, ex.x3, ex.x4]);
+                const prob = net.predictProb([ex.x1, ex.x2, ex.x3, ex.x4]);
+                const ok = (pred === ex.target);
+                if (ok) correct++;
+                
+                const visitDenorm = ex.x1 * (minMax.visit.max - minMax.visit.min) + minMax.visit.min;
+                const distractDenorm = ex.x2 * (minMax.distract.max - minMax.distract.min) + minMax.distract.min;
+                const testsDenorm = ex.x3 * (minMax.tests.max - minMax.tests.min) + minMax.tests.min;
+                const classworkDenorm = ex.x4 * (minMax.classwork.max - minMax.classwork.min) + minMax.classwork.min;
+                
+                html += `<tr>
+                    <td>${Math.round(visitDenorm)}%</td><td>${Math.round(distractDenorm)}%</td>
+                    <td>${testsDenorm.toFixed(1)}</td><td>${classworkDenorm.toFixed(1)}</td>
+                    <td>${ex.target === 1 ? '✅' : '❌'}</td>
+                    <td><strong>${pred === 1 ? '✅' : '❌'}</strong></td>
+                    <td><code>${prob.toFixed(4)}</code></td>
+                    <td>${ok ? '✅' : '❌'}</td>
+                </tr>`;
+            }
+            html += '</tbody></tr></div>';
+            const accuracy = (correct / data.length * 100).toFixed(1);
+            html += `<div class="alert ${accuracy === '100.0' ? 'alert-success' : 'alert-warning'} text-center">Точность: ${accuracy}% (${correct}/${data.length})</div>`;
+            container.innerHTML = html;
+        }
+        
+        function showAlert(type, msg) {
+            const div = document.createElement('div');
+            div.className = `alert alert-${type} alert-dismissible fade show position-fixed top-0 start-50 translate-middle-x mt-3`;
+            div.style.zIndex = '9999';
+            div.style.minWidth = '350px';
+            div.style.textAlign = 'center';
+            div.innerHTML = `${msg}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
+            document.body.appendChild(div);
+            setTimeout(() => div.remove(), 3000);
+        }
+        
+        async function trainNetwork() {
+            const lr = parseFloat(document.getElementById('learningRate').value);
+            const maxEpochs = parseInt(document.getElementById('maxEpochs').value);
+            const targetErr = parseFloat(document.getElementById('targetError').value);
+            
+            const net = new StudentNeuralNetwork(4, 12, lr);
+            const btn = document.querySelector('.btn-success');
+            const origText = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Обучение...';
+            btn.disabled = true;
+            
+            document.getElementById('predictions').innerHTML = '<p class="text-muted text-center">Обучение...</p>';
+            document.getElementById('convergenceResult').innerHTML = '<p class="mb-0">⏳ Идёт обучение...</p>';
+            
+            setTimeout(() => {
+                const result = net.trainBatch(normResult.normalized, maxEpochs, targetErr, (epoch, mse) => {
+                    if (epoch % 100 === 0) {
+                        document.getElementById('convergenceResult').innerHTML = `<p class="mb-0">⏳ Эпоха ${epoch}, MSE = ${mse.toExponential(4)}</p>`;
+                    }
+                });
+                
+                const resultDiv = document.getElementById('convergenceResult');
+                if (result.converged) {
+                    resultDiv.innerHTML = `<div class="convergence-badge text-success bg-white rounded p-3">🎉 СОШЛАСЬ на эпохе ${result.epoch} 🎉<br><small>MSE = ${result.mse.toExponential(4)} ≤ ${targetErr}</small></div>`;
+                    showAlert('success', `✅ Сошлась на эпохе ${result.epoch}`);
+                } else {
+                    resultDiv.innerHTML = `<div class="convergence-badge text-danger bg-white rounded p-3">⚠️ НЕ СОШЛАСЬ за ${maxEpochs} эпох<br><small>Целевая ошибка ${targetErr} не достигнута</small></div>`;
+                    showAlert('warning', `⚠️ Не сошлась за ${maxEpochs} эпох`);
+                }
+                
+                trainedNet = net;
+                displayPredictions(net, normResult.normalized, normResult.minMax);
+                btn.innerHTML = origText;
+                btn.disabled = false;
+            }, 100);
+        }
+        
+        function predictStudent() {
+            if (!trainedNet) {
+                showAlert('warning', 'Сначала обучите нейросеть!');
+                return;
+            }
+            
+            const visit = parseFloat(document.getElementById('predVisit').value);
+            const distract = parseFloat(document.getElementById('predDistract').value);
+            const tests = parseFloat(document.getElementById('predTests').value);
+            const classwork = parseFloat(document.getElementById('predClasswork').value);
+            
+            const minMax = normResult.minMax;
+            const normVisit = (visit - minMax.visit.min) / (minMax.visit.max - minMax.visit.min);
+            const normDistract = (distract - minMax.distract.min) / (minMax.distract.max - minMax.distract.min);
+            const normTests = (tests - minMax.tests.min) / (minMax.tests.max - minMax.tests.min);
+            const normClasswork = (classwork - minMax.classwork.min) / (minMax.classwork.max - minMax.classwork.min);
+            
+            const prob = trainedNet.predictProb([normVisit, normDistract, normTests, normClasswork]);
+            const passed = prob >= 0.5;
+            
+            const resultDiv = document.getElementById('predictionResult');
+            const textDiv = document.getElementById('predictionText');
+            
+            resultDiv.style.display = 'block';
+            if (passed) {
+                textDiv.className = 'prediction-result prediction-pass';
+                textDiv.innerHTML = `✅ СТУДЕНТ СДАСТ ЭКЗАМЕН<br><small>Вероятность: ${(prob * 100).toFixed(1)}%</small>`;
+            } else {
+                textDiv.className = 'prediction-result prediction-fail';
+                textDiv.innerHTML = `❌ СТУДЕНТ НЕ СДАСТ ЭКЗАМЕН<br><small>Вероятность сдачи: ${(prob * 100).toFixed(1)}%</small>`;
+            }
+        }
+        
+        // Отображение таблицы обучения
+        function displayTrainingTable() {
+            displayTrainingTableWithData(trainingDataRaw);
+            updateSortArrows();
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            displayTrainingTable();
+        });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

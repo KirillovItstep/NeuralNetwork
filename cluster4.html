@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Нейросеть — определение психотипа (4 темперамента)</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <style>
+        .weights-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        .convergence-badge {
+            font-size: 1.2rem;
+            font-weight: bold;
+            padding: 10px;
+            border-radius: 10px;
+        }
+        .scrollable-table {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .table-fixed td, .table-fixed th {
+            text-align: center;
+            vertical-align: middle;
+            font-size: 0.8rem;
+        }
+        .arch-card {
+            background: #f0f2f5;
+            border-radius: 15px;
+            padding: 15px;
+            margin-top: 20px;
+            font-size: 0.9rem;
+        }
+        .param-count {
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            color: #28a745;
+        }
+        .prediction-result {
+            font-size: 1.5rem;
+            font-weight: bold;
+            text-align: center;
+            padding: 20px;
+            border-radius: 15px;
+        }
+        .question-card {
+            background: white;
+            border-radius: 10px;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-left: 4px solid #667eea;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .question-text {
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+        .btn-predict {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            font-weight: bold;
+            cursor: pointer;
+            width: 100%;
+            transition: transform 0.1s;
+        }
+        .btn-predict:active {
+            transform: scale(0.97);
+        }
+        .temperament-badge {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+        .choleric { background: #e74c3c; color: white; }
+        .sanguine { background: #2ecc71; color: white; }
+        .phlegmatic { background: #3498db; color: white; }
+        .melancholic { background: #9b59b6; color: white; }
+        .radio-group {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .radio-group label {
+            cursor: pointer;
+            padding: 5px 10px;
+            border-radius: 20px;
+            transition: all 0.2s;
+            font-size: 0.85rem;
+        }
+        .radio-group input:checked + span {
+            background: #667eea;
+            color: white;
+            padding: 5px 12px;
+            border-radius: 20px;
+        }
+        .btn-success:disabled {
+            opacity: 0.6;
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <div class="container py-4">
+        <div class="row">
+            <div class="col-12 text-center mb-3">
+                <h1 class="display-5">🧠 Нейросеть: определение темперамента</h1>
+                <p class="lead">20 вопросов | Скрытый слой (24 нейрона) | 4 психотипа</p>
+                <p class="text-muted">
+                    <span class="badge bg-danger">🔥 Холерик</span>
+                    <span class="badge bg-success">😊 Сангвиник</span>
+                    <span class="badge bg-primary">🧘 Флегматик</span>
+                    <span class="badge bg-purple" style="background:#9b59b6;">🌙 Меланхолик</span>
+                </p>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col-md-5">
+                <div class="card shadow-sm mb-3">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">📊 Обучающая выборка (800 студентов)</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted small">800 записей с ответами на 20 вопросов (1-5 баллов)</p>
+                        
+                        <div class="scrollable-table" id="trainingTableContainer">
+                            <table class="table table-bordered table-sm table-fixed">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>№</th>
+                                        <th>Q1</th><th>Q2</th><th>Q3</th><th>Q4</th><th>Q5</th>
+                                        <th>Q6</th><th>Q7</th><th>Q8</th><th>Q9</th><th>Q10</th>
+                                        <th>Q11</th><th>Q12</th><th>Q13</th><th>Q14</th><th>Q15</th>
+                                        <th>Q16</th><th>Q17</th><th>Q18</th><th>Q19</th><th>Q20</th>
+                                        <th>Темперамент</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="trainingTable"></tbody>
+                            </table>
+                        </div>
+                        
+                        <div class="row mt-3">
+                            <div class="col-md-6">
+                                <label class="form-label">⚙️ Скорость обучения (η)</label>
+                                <input type="number" id="learningRate" class="form-control" value="0.3" step="0.05" min="0.01" max="1">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">🔄 Макс. эпох</label>
+                                <input type="number" id="maxEpochs" class="form-control" value="2000" step="200" min="100" max="10000">
+                            </div>
+                        </div>
+                        
+                        <div class="row mt-2">
+                            <div class="col-md-12">
+                                <label class="form-label">🎯 Целевая ошибка (MSE)</label>
+                                <input type="number" id="targetError" class="form-control" value="0.008" step="0.002" min="0.001" max="0.1">
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid gap-2 mt-4">
+                            <button class="btn btn-success btn-lg" onclick="trainNetwork()">🚀 Обучить нейросеть</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-7">
+                <div class="weights-card shadow">
+                    <h4 class="mb-3">🎯 Результат обучения</h4>
+                    <div id="convergenceResult" class="text-center">
+                        <p class="mb-0">Нажмите "Обучить нейросеть"</p>
+                    </div>
+                </div>
+                
+                <details class="arch-card shadow-sm">
+                    <summary style="cursor: pointer; font-weight: bold; color: #667eea;">🏗️ Архитектура нейронной сети</summary>
+                    <hr>
+                    <p><strong>📥 Входной слой:</strong> 20 нейронов (ответы на вопросы 1-5 баллов)</p>
+                    <p><strong>🔄 Скрытый слой:</strong> 24 нейрона (ReLU)</p>
+                    <p><strong>📤 Выходной слой:</strong> 4 нейрона (Softmax) → [Холерик, Сангвиник, Флегматик, Меланхолик]</p>
+                    <p><strong>⚙️ Параметры:</strong> 20×24 + 24 + 24×4 + 4 = <span class="param-count">580 обучаемых параметров</span></p>
+                    <hr>
+                    <p class="small text-muted mb-0">📚 По классификации Гиппократа-Галена-Павлова. Меланхолик — слабый тип нервной системы.</p>
+                </details>
+                
+                <div class="card shadow-sm mt-4">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">✅ Проверка на обучающей выборке</h5>
+                    </div>
+                    <div class="card-body" id="predictions">
+                        <p class="text-muted text-center">Обучите сеть, чтобы увидеть результаты</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">🔮 Пройдите тест из 20 вопросов</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="questionsContainer"></div>
+                        <div class="text-center mt-3">
+                            <button class="btn-predict" onclick="predictTemperament()">🎯 Определить темперамент</button>
+                        </div>
+                        <div id="predictionResult" class="mt-3" style="display: none;">
+                            <div class="prediction-result" id="predictionText"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // ========== 20 ВОПРОСОВ ДЛЯ 4 ТИПОВ ТЕМПЕРАМЕНТА ==========
+        const questions = [
+            "Я быстро принимаю решения и действую без колебаний",
+            "Я легко нахожу общий язык с новыми людьми",
+            "Я предпочитаю спокойный, размеренный образ жизни",
+            "Я часто переживаю из-за мелочей",
+            "Моё настроение может резко меняться без причины",
+            "Я люблю быть в центре внимания",
+            "Я долго раскачиваюсь перед началом работы",
+            "Я чувствителен к критике и замечаниям",
+            "Я вспыльчив, но быстро отхожу",
+            "Я оптимистичен и жизнерадостен",
+            "Меня трудно вывести из равновесия",
+            "Я склонен к тревожности и беспокойству",
+            "Я энергичен и люблю активные виды деятельности",
+            "Я быстро адаптируюсь к новым условиям",
+            "Я предпочитаю делать всё основательно и не спеша",
+            "Я часто чувствую усталость и упадок сил",
+            "Я говорю громко и быстро",
+            "Я улыбчив и открыт для общения",
+            "Я редко проявляю эмоции на людях",
+            "Я склонен к самоанализу и рефлексии"
+        ];
+        
+        // ========== ГЕНЕРАЦИЯ ОБУЧАЮЩЕЙ ВЫБОРКИ (4 типа) ==========
+        function generateTrainingData(n = 800) {
+            const data = [];
+            
+            // Профили для 4 психотипов (средние баллы по 20 вопросам)
+            // Вопросы сгруппированы:
+            // 1-5: активность/импульсивность
+            // 6-10: общительность/экстраверсия
+            // 11-15: стабильность/инертность
+            // 16-20: чувствительность/нейротизм
+            
+            const profiles = {
+                choleric:     [4.6, 2.5, 2.0, 4.5, 4.7, 4.2, 2.2, 2.5, 4.8, 3.5, 2.3, 2.5, 4.7, 3.0, 2.0, 2.2, 4.5, 3.0, 2.0, 2.3],
+                sanguine:     [3.5, 4.6, 3.0, 2.5, 2.8, 4.7, 3.2, 2.8, 2.5, 4.8, 3.8, 2.5, 4.0, 4.5, 3.2, 2.5, 3.5, 4.6, 3.0, 2.5],
+                phlegmatic:   [2.2, 2.5, 4.6, 2.2, 2.0, 2.5, 4.5, 2.5, 2.0, 2.8, 4.7, 2.5, 2.5, 3.0, 4.6, 2.5, 2.2, 2.5, 4.5, 3.0],
+                melancholic:  [2.0, 2.2, 3.5, 4.6, 4.5, 2.0, 4.0, 4.7, 2.5, 2.2, 4.0, 4.8, 2.0, 2.5, 4.2, 4.6, 2.0, 2.5, 4.5, 4.7]
+            };
+            
+            const typeNames = ["choleric", "sanguine", "phlegmatic", "melancholic"];
+            
+            for (let i = 0; i < n; i++) {
+                const typeIdx = i % 4;
+                const typeKey = typeNames[typeIdx];
+                const profile = profiles[typeKey];
+                
+                // Добавляем шум (нормальное распределение, sigma=0.6)
+                const answers = profile.map(mean => {
+                    let val = mean + (Math.random() - 0.5) * 1.2;
+                    return Math.min(5, Math.max(1, Math.round(val)));
+                });
+                
+                data.push({ answers, type: typeIdx });
+            }
+            
+            // Перемешиваем
+            for (let i = data.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [data[i], data[j]] = [data[j], data[i]];
+            }
+            
+            return data;
+        }
+        
+        let trainingData = generateTrainingData(800);
+        
+        function normalizeData(data) {
+            return data.map(item => ({
+                inputs: item.answers.map(a => (a - 1) / 4),
+                target: item.type
+            }));
+        }
+        
+        let normalizedData = normalizeData(trainingData);
+        let trainedNet = null;
+        
+        // ========== ОТОБРАЖЕНИЕ ТАБЛИЦЫ ==========
+        function displayTrainingTable() {
+            const tbody = document.getElementById('trainingTable');
+            tbody.innerHTML = '';
+            const displayData = trainingData.slice(0, 20);
+            
+            const typeNames = ["Холерик", "Сангвиник", "Флегматик", "Меланхолик"];
+            const typeClasses = ["choleric", "sanguine", "phlegmatic", "melancholic"];
+            
+            displayData.forEach((student, idx) => {
+                const row = tbody.insertRow();
+                row.insertCell(0).innerText = idx + 1;
+                for (let i = 0; i < 20; i++) {
+                    row.insertCell(i + 1).innerText = student.answers[i];
+                }
+                const typeCell = row.insertCell(21);
+                typeCell.innerHTML = `<span class="temperament-badge ${typeClasses[student.type]}">${typeNames[student.type]}</span>`;
+            });
+        }
+        
+        // ========== НЕЙРОСЕТЬ (4 выхода) ==========
+        class TemperamentNetwork {
+            constructor(inputSize = 20, hiddenSize = 24, outputSize = 4, learningRate = 0.3) {
+                this.lr = learningRate;
+                this.inputSize = inputSize;
+                this.hiddenSize = hiddenSize;
+                this.outputSize = outputSize;
+                
+                const w1Scale = Math.sqrt(2.0 / inputSize);
+                const w2Scale = Math.sqrt(2.0 / hiddenSize);
+                
+                this.W1 = Array(hiddenSize).fill().map(() => 
+                    Array(inputSize).fill().map(() => (Math.random() - 0.5) * w1Scale * 2)
+                );
+                this.b1 = Array(hiddenSize).fill().map(() => 0);
+                
+                this.W2 = Array(outputSize).fill().map(() => 
+                    Array(hiddenSize).fill().map(() => (Math.random() - 0.5) * w2Scale * 2)
+                );
+                this.b2 = Array(outputSize).fill().map(() => 0);
+            }
+            
+            relu(x) { return Math.max(0, x); }
+            reluDerivative(x) { return x > 0 ? 1 : 0; }
+            
+            softmax(arr) {
+                const max = Math.max(...arr);
+                const exp = arr.map(x => Math.exp(x - max));
+                const sum = exp.reduce((a, b) => a + b, 0);
+                return exp.map(x => x / sum);
+            }
+            
+            forward(inputs) {
+                let hidden = [];
+                let hiddenSums = [];
+                for (let i = 0; i < this.hiddenSize; i++) {
+                    let sum = this.b1[i];
+                    for (let j = 0; j < this.inputSize; j++) {
+                        sum += this.W1[i][j] * inputs[j];
+                    }
+                    hiddenSums.push(sum);
+                    hidden.push(this.relu(sum));
+                }
+                
+                let outputSums = [];
+                for (let i = 0; i < this.outputSize; i++) {
+                    let sum = this.b2[i];
+                    for (let j = 0; j < this.hiddenSize; j++) {
+                        sum += this.W2[i][j] * hidden[j];
+                    }
+                    outputSums.push(sum);
+                }
+                
+                const output = this.softmax(outputSums);
+                return { output, hidden, hiddenSums, outputSums };
+            }
+            
+            predict(inputs) {
+                const { output } = this.forward(inputs);
+                return output.indexOf(Math.max(...output));
+            }
+            
+            predictProb(inputs) {
+                return this.forward(inputs).output;
+            }
+            
+            trainExample(inputs, targetIdx) {
+                const fp = this.forward(inputs);
+                
+                const target = Array(this.outputSize).fill(0);
+                target[targetIdx] = 1;
+                
+                const deltaOutput = fp.output.map((out, i) => out - target[i]);
+                
+                const deltaHidden = Array(this.hiddenSize).fill(0);
+                for (let i = 0; i < this.hiddenSize; i++) {
+                    let sum = 0;
+                    for (let j = 0; j < this.outputSize; j++) {
+                        sum += deltaOutput[j] * this.W2[j][i];
+                    }
+                    deltaHidden[i] = sum * this.reluDerivative(fp.hiddenSums[i]);
+                }
+                
+                for (let i = 0; i < this.outputSize; i++) {
+                    for (let j = 0; j < this.hiddenSize; j++) {
+                        this.W2[i][j] -= this.lr * deltaOutput[i] * fp.hidden[j];
+                    }
+                    this.b2[i] -= this.lr * deltaOutput[i];
+                }
+                
+                for (let i = 0; i < this.hiddenSize; i++) {
+                    for (let j = 0; j < this.inputSize; j++) {
+                        this.W1[i][j] -= this.lr * deltaHidden[i] * inputs[j];
+                    }
+                    this.b1[i] -= this.lr * deltaHidden[i];
+                }
+                
+                let mse = 0;
+                for (let i = 0; i < this.outputSize; i++) {
+                    const err = target[i] - fp.output[i];
+                    mse += err * err;
+                }
+                return mse / this.outputSize;
+            }
+            
+            trainBatch(data, epochs, targetMSE, onProgress) {
+                for (let epoch = 1; epoch <= epochs; epoch++) {
+                    const shuffled = [...data];
+                    for (let i = shuffled.length - 1; i > 0; i--) {
+                        const j = Math.floor(Math.random() * (i + 1));
+                        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+                    }
+                    
+                    let epochLoss = 0;
+                    for (const ex of shuffled) {
+                        epochLoss += this.trainExample(ex.inputs, ex.target);
+                    }
+                    const avgMSE = epochLoss / data.length;
+                    
+                    if (onProgress) onProgress(epoch, avgMSE);
+                    if (avgMSE <= targetMSE) return { converged: true, epoch: epoch, mse: avgMSE };
+                }
+                return { converged: false, epoch: epochs, mse: null };
+            }
+        }
+        
+        function displayPredictions(net, data) {
+            const container = document.getElementById('predictions');
+            let correct = 0;
+            const results = [];
+            
+            for (let i = 0; i < data.length; i++) {
+                const pred = net.predict(data[i].inputs);
+                if (pred === data[i].target) correct++;
+                results.push({ pred, target: data[i].target });
+            }
+            
+            const accuracy = (correct / data.length * 100).toFixed(1);
+            
+            let html = `<div class="alert ${accuracy >= 85 ? 'alert-success' : 'alert-warning'} text-center">
+                <strong>Точность на обучающей выборке: ${accuracy}%</strong> (${correct}/${data.length})
+            </div>`;
+            
+            const cm = [[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]];
+            for (let i = 0; i < data.length; i++) {
+                cm[data[i].target][results[i].pred]++;
+            }
+            
+            html += `<div class="table-responsive"><table class="table table-sm table-bordered text-center">
+                <thead><tr><th></th><th>🔥Холер</th><th>😊Сангв</th><th>🧘Флегм</th><th>🌙Мелан</th></tr></thead>
+                <tbody>
+                    <tr><th>🔥Холерик</th>${cm[0].map((v,i) => `<td class="${i===0 && v>180 ? 'bg-success text-white' : ''}">${v}</td>`).join('')}</tr>
+                    <tr><th>😊Сангвиник</th>${cm[1].map((v,i) => `<td class="${i===1 && v>180 ? 'bg-success text-white' : ''}">${v}</td>`).join('')}</tr>
+                    <tr><th>🧘Флегматик</th>${cm[2].map((v,i) => `<td class="${i===2 && v>180 ? 'bg-success text-white' : ''}">${v}</td>`).join('')}</tr>
+                    <tr><th>🌙Меланхолик</th>${cm[3].map((v,i) => `<td class="${i===3 && v>180 ? 'bg-success text-white' : ''}">${v}</td>`).join('')}</tr>
+                </tbody>
+            </table></div>`;
+            
+            container.innerHTML = html;
+        }
+        
+        function showAlert(type, msg) {
+            const div = document.createElement('div');
+            div.className = `alert alert-${type} alert-dismissible fade show position-fixed top-0 start-50 translate-middle-x mt-3`;
+            div.style.zIndex = '9999';
+            div.style.minWidth = '350px';
+            div.style.textAlign = 'center';
+            div.innerHTML = `${msg}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
+            document.body.appendChild(div);
+            setTimeout(() => div.remove(), 3000);
+        }
+        
+        async function trainNetwork() {
+            const lr = parseFloat(document.getElementById('learningRate').value);
+            const maxEpochs = parseInt(document.getElementById('maxEpochs').value);
+            const targetErr = parseFloat(document.getElementById('targetError').value);
+            
+            const net = new TemperamentNetwork(20, 24, 4, lr);
+            const btn = document.querySelector('.btn-success');
+            const origText = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Обучение...';
+            btn.disabled = true;
+            
+            document.getElementById('predictions').innerHTML = '<p class="text-muted text-center">Обучение...</p>';
+            document.getElementById('convergenceResult').innerHTML = '<p class="mb-0">⏳ Идёт обучение...</p>';
+            
+            setTimeout(() => {
+                const result = net.trainBatch(normalizedData, maxEpochs, targetErr, (epoch, mse) => {
+                    if (epoch % 100 === 0) {
+                        document.getElementById('convergenceResult').innerHTML = `<p class="mb-0">⏳ Эпоха ${epoch}, MSE = ${mse.toExponential(4)}</p>`;
+                    }
+                });
+                
+                const resultDiv = document.getElementById('convergenceResult');
+                if (result.converged) {
+                    resultDiv.innerHTML = `<div class="convergence-badge text-success bg-white rounded p-3">🎉 СОШЛАСЬ на эпохе ${result.epoch} 🎉<br><small>MSE = ${result.mse.toExponential(4)} ≤ ${targetErr}</small></div>`;
+                    showAlert('success', `✅ Сошлась на эпохе ${result.epoch}`);
+                } else {
+                    resultDiv.innerHTML = `<div class="convergence-badge text-danger bg-white rounded p-3">⚠️ НЕ СОШЛАСЬ за ${maxEpochs} эпох<br><small>Целевая ошибка ${targetErr} не достигнута</small></div>`;
+                    showAlert('warning', `⚠️ Не сошлась за ${maxEpochs} эпох`);
+                }
+                
+                trainedNet = net;
+                displayPredictions(net, normalizedData);
+                btn.innerHTML = origText;
+                btn.disabled = false;
+            }, 100);
+        }
+        
+        function displayQuestions() {
+            const container = document.getElementById('questionsContainer');
+            let html = '';
+            
+            questions.forEach((q, idx) => {
+                html += `
+                    <div class="question-card">
+                        <div class="question-text">${idx + 1}. ${q}</div>
+                        <div class="radio-group">
+                            <label style="background:#f8d7da; padding:5px 12px; border-radius:20px;">
+                                <input type="radio" name="q${idx}" value="1"> 1 (нет)
+                            </label>
+                            <label style="background:#fff3cd; padding:5px 12px; border-radius:20px;">
+                                <input type="radio" name="q${idx}" value="2"> 2
+                            </label>
+                            <label style="background:#d1ecf1; padding:5px 12px; border-radius:20px;">
+                                <input type="radio" name="q${idx}" value="3"> 3 (средне)
+                            </label>
+                            <label style="background:#d4edda; padding:5px 12px; border-radius:20px;">
+                                <input type="radio" name="q${idx}" value="4"> 4
+                            </label>
+                            <label style="background:#c3e6cb; padding:5px 12px; border-radius:20px;">
+                                <input type="radio" name="q${idx}" value="5"> 5 (да)
+                            </label>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+            
+            for (let i = 0; i < questions.length; i++) {
+                const radios = document.getElementsByName(`q${i}`);
+                if (radios[2]) radios[2].checked = true;
+            }
+        }
+        
+        function predictTemperament() {
+            if (!trainedNet) {
+                showAlert('warning', 'Сначала обучите нейросеть!');
+                return;
+            }
+            
+            const answers = [];
+            for (let i = 0; i < questions.length; i++) {
+                const radios = document.getElementsByName(`q${i}`);
+                let selected = 3;
+                for (let j = 0; j < radios.length; j++) {
+                    if (radios[j].checked) {
+                        selected = parseInt(radios[j].value);
+                        break;
+                    }
+                }
+                answers.push(selected);
+            }
+            
+            const normalizedAnswers = answers.map(a => (a - 1) / 4);
+            const probs = trainedNet.predictProb(normalizedAnswers);
+            const predType = trainedNet.predict(normalizedAnswers);
+            
+            const typeNames = ["Холерик", "Сангвиник", "Флегматик", "Меланхолик"];
+            const typeColors = ["#e74c3c", "#2ecc71", "#3498db", "#9b59b6"];
+            const typeDescriptions = [
+                "🔥 Вы — Холерик! Энергичный, страстный, быстро реагируете. Сильный, неуравновешенный тип нервной системы. Иногда вспыльчивы, но быстро отходите.",
+                "😊 Вы — Сангвиник! Жизнерадостный, общительный, легко адаптируетесь. Сильный, уравновешенный, подвижный тип. Душа компании!",
+                "🧘 Вы — Флегматик! Спокойный, уравновешенный, надежный. Сильный, уравновешенный, инертный тип. Ничто не выведет вас из равновесия.",
+                "🌙 Вы — Меланхолик! Чувствительный, ранимый, глубокий. Слабый тип нервной системы. Вы тонко чувствуете мир и склонны к рефлексии."
+            ];
+            
+            const resultDiv = document.getElementById('predictionResult');
+            const textDiv = document.getElementById('predictionText');
+            
+            resultDiv.style.display = 'block';
+            textDiv.style.background = typeColors[predType];
+            textDiv.style.color = 'white';
+            
+            textDiv.innerHTML = `
+                <div style="font-size: 2rem;">${typeNames[predType]}</div>
+                <div style="font-size: 1rem; margin-top: 10px;">${typeDescriptions[predType]}</div>
+                <div style="font-size: 0.85rem; margin-top: 15px; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 10px;">
+                    🎯 Вероятности:<br>
+                    🔥 Холерик: ${(probs[0] * 100).toFixed(1)}%<br>
+                    😊 Сангвиник: ${(probs[1] * 100).toFixed(1)}%<br>
+                    🧘 Флегматик: ${(probs[2] * 100).toFixed(1)}%<br>
+                    🌙 Меланхолик: ${(probs[3] * 100).toFixed(1)}%
+                </div>
+            `;
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            displayTrainingTable();
+            displayQuestions();
+        });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
